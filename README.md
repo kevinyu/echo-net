@@ -16,7 +16,7 @@ Initializing network
 
 ```
 >>> import numpy as np
->>> from echo.network import ReservoirNetwork, ReservoirState
+>>> from echo.network import ReservoirNetwork, Reservoir
 >>> res = Reservoir(800, N_in=1, N_out=1, sparsity=0.25, g=1.8, noise=0.01)
 >>> net = ReservoirNetwork(res)
 ```
