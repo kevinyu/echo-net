@@ -40,6 +40,7 @@ class Reservoir(object):
             dt=0.1,
             t_const=10,
             g=1.5,
+            feedback_on=0,
             noise=0.0):
         self.N = N
         self.N_in = N_in
@@ -49,16 +50,22 @@ class Reservoir(object):
         self.t_const = t_const
         self.noise = noise
         self.g = g
+        self.feedback_on = feedback_on
         self.N_feedback = N_feedback or N_out
 
-        self.W_input = np.random.uniform(-1, 1, size=(N_in, N))
-        self.W_feedback = np.random.uniform(-1, 1, size=(self.N_feedback, N))
-        self.W_feedback = np.random.normal(scale=0.1, size=(self.N_feedback, N))
-        self.W_recurrent = sparse.random(N, N, density=sparsity, format="csr")
-        _temp = self.W_recurrent.toarray()
-        _temp[np.where(_temp != 0)] = 1.0 - 2.0 * _temp[np.where(_temp != 0)]
-        self.W_recurrent = sparse.csr_matrix(_temp)
-        self.W_recurrent = g * self.W_recurrent / np.sqrt(sparsity * N)
+        self.W_input = np.random.uniform(-1, 1, size=(N_in, N))  # gaussian, unit variance
+        self.W_feedback = np.random.uniform(-1, 1, size=(self.N_feedback, N))  # uniform -1 1
+        # self.W_feedback = np.random.normal(scale=0.1, size=(self.N_feedback, N))
+
+        def randnorm(length):
+            return np.random.normal(scale=g / np.sqrt(sparsity * N), size=length)
+
+        # self.W_recurrent = sparse.random(N, N, density=sparsity, format="csr")  # 
+        self.W_recurrent = sparse.random(N, N, density=sparsity, format="csr", data_rvs=randnorm)  # 
+        # _temp = self.W_recurrent.toarray()
+        # _temp[np.where(_temp != 0)] = 1.0 - 2.0 * _temp[np.where(_temp != 0)]
+        # self.W_recurrent = sparse.csr_matrix(_temp)
+        # self.W_recurrent = np.sqrt(sparsity * N) * self.W_recurrent / g
 
     def step(self, state, input_data=None, feedback_data=None):
         """Run one time step of the network dynamics using leaky integrator
@@ -80,7 +87,8 @@ class Reservoir(object):
                 - state.x +
                 self.W_recurrent.T @ state.r +
                 self.W_input.T @ input_data +
-                self.W_feedback.T @ feedback_data
+                self.feedback_on * (self.W_feedback.T @ feedback_data) +
+                (np.random.normal(scale=self.noise, size=(state.x.shape)) if self.noise else 0)
         )
 
         return ReservoirState(state.x + dx)
@@ -94,15 +102,18 @@ class ReservoirNetwork(object):
     feedback_reservoir (Reservoir obj, default=None)
     """
 
-    def __init__(self, res):
+    def __init__(self, res=None, **res_kwargs):
         """
         res (Reservoir obj): Reservoir
-        noise (float, default=0.0): Noise level 
         """
-        self.res = res
+        if res:
+            self.res = res
+        else:
+            self.res = ReservoirNetwork(**res_kwargs)
         
         # this network will be learned
         self.W_readout = np.random.uniform(-1, 1, size=(res.N, res.N_out))
+        self.W_readout = self.W_readout / np.sqrt(res.N)
 
     def readout(self, state):
         """Generate output from reservoir state"""
@@ -172,17 +183,15 @@ class ReservoirNetwork(object):
             visible_state_history[:, ind:ind+1] = state.r
 
         # do linear regression here
-        train_x = outputs[:, exclude_steps:]
+        train_x = hidden_state_history[:, exclude_steps:]
         train_y = teacher[:, exclude_steps:]
 
-        # TODO: linreg to get weight matrix
-        W_readout = None
-        self.W_readout = self.W_readout
-        # print("Finished learning")
+        self.W_readout = np.linalg.lstsq(train_x.T, train_y.T)[0]
+        print("Finished learning")
 
         return {
             "z": outputs,
             "x": hidden_state_history,
             "r": visible_state_history,
-            "W_readout": W_readout
+            "W_readout": self.W_readout
         }
