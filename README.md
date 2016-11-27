@@ -55,3 +55,8 @@ plt.plot(result["z"][0])
 ```
 
 ![Sine input example](/images/sine_teacher_example.png?raw=true "Output vs teacher")
+
+## TODO
+
+Add better plotting functions
+Add FORCE learning algorithm from Sussillo, Abbott 2009
