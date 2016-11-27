@@ -58,5 +58,6 @@ plt.plot(result["z"][0])
 
 ## TODO
 
-Add better plotting functions
-Add FORCE learning algorithm from Sussillo, Abbott 2009
+* Add better plotting functions
+
+* Add FORCE learning algorithm from Sussillo, Abbott 2009
