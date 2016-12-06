@@ -71,19 +71,30 @@ class EchoStateNetwork(object):
         train_y = teacher[exclude_steps:]
 
         self.W_out = (np.linalg.pinv(train_x) @ train_y).T
-        return self.W_out
 
-    def predict(self, inputs, W_out=None):
+        training_outputs = np.hstack((states, inputs)) @ self.W_out.T
+
+        return {"r": states, "inputs": inputs, "outputs": training_outputs}
+
+    def predict(self, inputs, W_out=None, initial_state=None,
+            initial_input=None, initial_output=None):
         n_samples = inputs.shape[0]
         W_out = W_out or self.W_out
 
+        if initial_state is None:
+            initial_state = np.zeros(self.n_res)
+        if initial_input is None:
+            initial_input = np.zeros(self.n_inputs)
+        if initial_output is None:
+            initial_output = np.zeros(self.n_outputs)
+
         # initialize inputs, states, and outputs with an extra row for the initial state
-        inputs = np.vstack((np.zeros(self.n_inputs), inputs))
-        states = np.zeros((n_samples + 1, self.n_res))
-        outputs = np.zeros((n_samples + 1, self.n_outputs))
+        states = np.vstack((initial_state, np.zeros((n_samples, self.n_res))))
+        inputs = np.vstack((initial_input, inputs))
+        outputs = np.vstack((initial_output, np.zeros((n_samples, self.n_outputs))))
 
         for n in range(n_samples):
             states[n+1] = self.step(states[n], inputs[n+1], outputs[n])
             outputs[n+1] = W_out @ np.concatenate((states[n+1], inputs[n+1]))
 
-        return outputs[1:]
+        return {"r": states[1:], "inputs": inputs[1:], "outputs": outputs[1:]}
